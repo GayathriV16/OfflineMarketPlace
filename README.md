@@ -156,6 +156,38 @@ Listing thumbnails use a constrained image request size of approximately `240 x 
 
 The listing cards display images at a fixed height to avoid excessive layout and memory costs.
 
+## Memory and CPU Considerations
+
+The application is designed to handle a larger number of marketplace listings efficiently, including a test dataset of 200 listings.
+
+### Memory Optimization
+
+* Uses `LazyVerticalGrid` so listing items are composed only as they become visible instead of loading all UI elements at once.
+* Uses Coil for asynchronous image loading and caching.
+* Listing images are displayed as thumbnails rather than loading large full-resolution images into the UI.
+* Images selected from the camera or photo picker are copied to the application's local storage and referenced by URI/path instead of keeping bitmap objects in memory.
+* Room provides persistent local storage, avoiding the need to keep the complete dataset in memory.
+* `StateFlow` is used to expose reactive UI state without unnecessary duplication of data.
+
+### CPU Optimization
+
+* Database operations are performed using Kotlin coroutines and suspend functions so they do not block the main UI thread.
+* Network and synchronization operations run in background workers using WorkManager.
+* WorkManager uses network constraints so synchronization is performed when a network connection is available.
+* The sync queue processes only pending create/update operations instead of repeatedly uploading the complete listing dataset.
+* `LazyVerticalGrid` reduces unnecessary UI composition and rendering work when scrolling through large datasets.
+
+### Performance Validation
+
+* The application was tested with 200 marketplace listings.
+* The listing grid remained responsive during scrolling.
+* Offline creation and editing are persisted locally using Room.
+* Background synchronization is handled by WorkManager to keep the UI responsive.
+* Image loading is performed asynchronously to avoid blocking the main thread.
+
+These approaches help keep memory usage controlled, reduce unnecessary CPU work, and maintain a responsive user experience as the number of listings increases.
+
+
 ## Performance
 
 The application contains 200 listings for performance testing.
@@ -217,6 +249,14 @@ The tests are located under:
 - Retrofit API abstraction
 - Kotlin Coroutines
 - JUnit
+
+## Architecture Diagram
+
+![Architecture Diagram](docs/architecture-diagram.png)
+
+## Sequence Diagram
+
+![Sequence Diagram](docs/sequence-diagram.png)
 
 ## Project Structure
 
