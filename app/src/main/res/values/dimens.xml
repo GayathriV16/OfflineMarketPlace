@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="screen_padding">20dp</dimen>
+    <dimen name="form_spacing">12dp</dimen>
+    <dimen name="description_field_height">120dp</dimen>
+    <dimen name="listing_image_height">180dp</dimen>
+    <dimen name="card_padding">12dp</dimen>
+    <dimen name="card_corner_radius">16dp</dimen>
+    <dimen name="image_corner_radius">12dp</dimen>
+    <dimen name="button_corner_radius">12dp</dimen>
+    <dimen name="photo_button_spacing">8dp</dimen>
+    <dimen name="image_button_spacing">12dp</dimen>
+    <dimen name="photo_placeholder_spacing">12dp</dimen>
+    <dimen name="card_elevation">2dp</dimen>
+    <dimen name="browse_horizontal_padding">16dp</dimen>
+    <dimen name="browse_header_top_padding">20dp</dimen>
+    <dimen name="browse_header_bottom_padding">12dp</dimen>
+    <dimen name="browse_loading_top_padding">12dp</dimen>
+    <dimen name="sync_card_elevation">2dp</dimen>
+    <dimen name="sync_card_padding">12dp</dimen>
+    <dimen name="sync_card_spacing">8dp</dimen>
+    <dimen name="listing_count_top_padding">16dp</dimen>
+    <dimen name="listing_count_bottom_padding">8dp</dimen>
+    <dimen name="grid_content_top_padding">4dp</dimen>
+    <dimen name="grid_content_bottom_padding">100dp</dimen>
+    <dimen name="grid_item_spacing">12dp</dimen>
+    <dimen name="fab_padding">20dp</dimen>
+    <dimen name="listing_card_corner_radius">16dp</dimen>
+    <dimen name="listing_card_image_height">120dp</dimen>
+    <dimen name="listing_card_content_padding">12dp</dimen>
+    <dimen name="listing_card_content_spacing">5dp</dimen>
+    <dimen name="favorite_button_padding">4dp</dimen>
+    <dimen name="favorite_button_size">40dp</dimen>
+    <dimen name="listing_image_request_size">240dp</dimen>
+</resources>

@@ -7,6 +7,7 @@ import com.example.offlinemarketplace.data.local.SyncOperationEntity
 import com.example.offlinemarketplace.data.model.Listing
 import com.example.offlinemarketplace.data.remote.ApiListing
 import com.example.offlinemarketplace.data.remote.ListingApi
+import com.example.offlinemarketplace.sync.SyncOperationType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -15,6 +16,7 @@ class ListingRepository(
     private val syncOperationDao: SyncOperationDao,
     private val listingApi: ListingApi
 ) {
+
     val pendingOperationCount: Flow<Int> =
         syncOperationDao.getPendingOperationCount()
 
@@ -31,9 +33,9 @@ class ListingRepository(
         )
     }
 
-    suspend fun createListingOffline(
-        listing: Listing
-    ) {
+    suspend fun createListingOffline(listing: Listing) {
+        val now = System.currentTimeMillis()
+
         val entity = ListingEntity(
             id = listing.id,
             title = listing.title,
@@ -42,21 +44,19 @@ class ListingRepository(
             description = listing.description,
             imageUrl = listing.imageUrl,
             isFavorite = listing.isFavorite,
-            updatedAt = System.currentTimeMillis(),
+            updatedAt = now,
             needsSync = true
         )
 
-        listingDao.insertListings(
-            listOf(entity)
-        )
+        listingDao.insertListings(listOf(entity))
 
         syncOperationDao.deleteForListing(listing.id)
 
         syncOperationDao.insert(
             SyncOperationEntity(
                 listingId = listing.id,
-                operation = "CREATE",
-                createdAt = System.currentTimeMillis()
+                operation = SyncOperationType.CREATE,
+                createdAt = now
             )
         )
     }
@@ -65,10 +65,30 @@ class ListingRepository(
         listingId: Long,
         isFavorite: Boolean
     ) {
-        listingDao.updateFavorite(
+        val now = System.currentTimeMillis()
+
+        val rowsUpdated = listingDao.updateFavorite(
             listingId = listingId,
-            isFavorite = isFavorite
+            isFavorite = isFavorite,
+            updatedAt = now
         )
+
+        if (rowsUpdated == 0) return
+
+        val existingOperation =
+            syncOperationDao.getOperationForListing(listingId)
+
+        if (existingOperation?.operation != SyncOperationType.CREATE) {
+            syncOperationDao.deleteForListing(listingId)
+
+            syncOperationDao.insert(
+                SyncOperationEntity(
+                    listingId = listingId,
+                    operation = SyncOperationType.UPDATE,
+                    createdAt = now
+                )
+            )
+        }
     }
 
     private fun Listing.toEntity(): ListingEntity {
@@ -107,7 +127,7 @@ class ListingRepository(
     ) {
         val now = System.currentTimeMillis()
 
-        listingDao.updateListing(
+        val rowsUpdated = listingDao.updateListing(
             listingId = listingId,
             title = title,
             price = price,
@@ -117,15 +137,22 @@ class ListingRepository(
             updatedAt = now
         )
 
-        syncOperationDao.deleteForListing(listingId)
+        if (rowsUpdated == 0) return
 
-        syncOperationDao.insert(
-            SyncOperationEntity(
-                listingId = listingId,
-                operation = "UPDATE",
-                createdAt = now
+        val existingOperation =
+            syncOperationDao.getOperationForListing(listingId)
+
+        if (existingOperation?.operation != SyncOperationType.CREATE) {
+            syncOperationDao.deleteForListing(listingId)
+
+            syncOperationDao.insert(
+                SyncOperationEntity(
+                    listingId = listingId,
+                    operation = SyncOperationType.UPDATE,
+                    createdAt = now
+                )
             )
-        )
+        }
     }
 
     suspend fun hasListings(): Boolean {
@@ -133,8 +160,7 @@ class ListingRepository(
     }
 
     suspend fun fetchListingsFromServer(): List<Listing> {
-        return listingApi
-            .getListings()
+        return listingApi.getListings()
             .map { it.toListing() }
     }
 
@@ -146,21 +172,7 @@ class ListingRepository(
             category = category,
             description = description,
             imageUrl = imageUrl,
-            isFavorite = false
-        )
-    }
-
-    private fun Listing.toApiListing(
-        updatedAt: Long
-    ): ApiListing {
-        return ApiListing(
-            id = id,
-            title = title,
-            price = price,
-            category = category,
-            description = description,
-            imageUrl = imageUrl,
-            updatedAt = updatedAt
+            isFavorite = isFavorite
         )
     }
 }

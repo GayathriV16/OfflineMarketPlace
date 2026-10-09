@@ -18,9 +18,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.stringResource
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
+import com.example.offlinemarketplace.R
 import com.example.offlinemarketplace.data.model.Listing
 
 @Composable
@@ -29,6 +32,7 @@ fun ListingCard(
     onClick: () -> Unit,
     onFavoriteClick: () -> Unit
 ) {
+    val context = LocalContext.current
 
     Card(
         modifier = Modifier
@@ -36,51 +40,61 @@ fun ListingCard(
             .clickable {
                 onClick()
             },
-        shape = RoundedCornerShape(16.dp)
+        shape = RoundedCornerShape(
+            dimensionResource(R.dimen.listing_card_corner_radius)
+        )
     ) {
-
         Column {
-
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(120.dp)
+                    .height(
+                        dimensionResource(R.dimen.listing_card_image_height)
+                    )
             ) {
-
-                if (listing.imageUrl != null) {
-
+                if (!listing.imageUrl.isNullOrBlank()) {
                     AsyncImage(
-                        model = listing.imageUrl.let { imageUrl ->
-                            ImageRequest.Builder(
-                                androidx.compose.ui.platform.LocalContext.current
-                            )
-                                .data(imageUrl)
-                                .size(240, 240)
-                                .build()
-                        },
-                        contentDescription = "Listing image",
+                        model = ImageRequest.Builder(context)
+                            .data(listing.imageUrl)
+                            .size(240, 240)
+                            .build(),
+                        contentDescription = stringResource(
+                            R.string.listing_image_description
+                        ),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(120.dp)
+                            .height(
+                                dimensionResource(
+                                    R.dimen.listing_card_image_height
+                                )
+                            )
                             .clip(
                                 RoundedCornerShape(
-                                    topStart = 16.dp,
-                                    topEnd = 16.dp
+                                    topStart = dimensionResource(
+                                        R.dimen.listing_card_corner_radius
+                                    ),
+                                    topEnd = dimensionResource(
+                                        R.dimen.listing_card_corner_radius
+                                    )
                                 )
                             ),
                         contentScale = ContentScale.Crop
                     )
-
                 } else {
-
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(120.dp),
+                            .height(
+                                dimensionResource(
+                                    R.dimen.listing_card_image_height
+                                )
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "No Image",
+                            text = stringResource(
+                                R.string.no_image_available
+                            ),
                             style = MaterialTheme.typography.bodyMedium
                         )
                     }
@@ -90,25 +104,34 @@ fun ListingCard(
                     onClick = onFavoriteClick,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(4.dp)
-                        .size(40.dp)
+                        .padding(
+                            dimensionResource(R.dimen.favorite_button_padding)
+                        )
+                        .size(
+                            dimensionResource(R.dimen.favorite_button_size)
+                        )
                 ) {
                     Text(
-                        text = if (listing.isFavorite) {
-                            "♥"
-                        } else {
-                            "♡"
-                        },
+                        text = stringResource(
+                            if (listing.isFavorite) {
+                                R.string.favorite_selected_symbol
+                            } else {
+                                R.string.favorite_unselected_symbol
+                            }
+                        ),
                         style = MaterialTheme.typography.titleLarge
                     )
                 }
             }
 
             Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(5.dp)
+                modifier = Modifier.padding(
+                    dimensionResource(R.dimen.listing_card_content_padding)
+                ),
+                verticalArrangement = Arrangement.spacedBy(
+                    dimensionResource(R.dimen.listing_card_content_spacing)
+                )
             ) {
-
                 Text(
                     text = listing.title,
                     style = MaterialTheme.typography.titleMedium,
@@ -116,7 +139,10 @@ fun ListingCard(
                 )
 
                 Text(
-                    text = "₹${listing.price}",
+                    text = stringResource(
+                        R.string.listing_price,
+                        listing.price.toString()
+                    ),
                     style = MaterialTheme.typography.titleSmall
                 )
 

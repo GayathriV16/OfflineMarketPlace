@@ -9,6 +9,8 @@ import androidx.work.WorkManager
 
 object SyncScheduler {
 
+    private const val SYNC_WORK_NAME = "marketplace_sync"
+
     fun scheduleSync(context: Context) {
 
         val constraints = Constraints.Builder()
@@ -22,7 +24,7 @@ object SyncScheduler {
 
         WorkManager.getInstance(context)
             .enqueueUniqueWork(
-                "marketplace_sync",
+                SYNC_WORK_NAME,
                 ExistingWorkPolicy.KEEP,
                 syncRequest
             )

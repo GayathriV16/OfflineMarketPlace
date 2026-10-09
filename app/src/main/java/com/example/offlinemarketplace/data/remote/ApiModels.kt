@@ -1,5 +1,4 @@
 package com.example.offlinemarketplace.data.remote
-
 data class ApiListing(
     val id: Long,
     val title: String,
@@ -7,5 +6,6 @@ data class ApiListing(
     val category: String,
     val description: String,
     val imageUrl: String?,
-    val updatedAt: Long
+    val updatedAt: Long,
+    val isFavorite: Boolean = false
 )

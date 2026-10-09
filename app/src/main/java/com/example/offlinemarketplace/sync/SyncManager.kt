@@ -1,7 +1,7 @@
+
 package com.example.offlinemarketplace.sync
 
 import com.example.offlinemarketplace.data.local.ListingDao
-import com.example.offlinemarketplace.data.local.ListingEntity
 import com.example.offlinemarketplace.data.local.SyncOperationDao
 import com.example.offlinemarketplace.data.remote.ApiListing
 import com.example.offlinemarketplace.data.remote.ListingApi
@@ -13,12 +13,9 @@ class SyncManager(
 ) {
 
     suspend fun syncPendingOperations() {
-
-        val operations =
-            syncOperationDao.getPendingOperations()
+        val operations = syncOperationDao.getPendingOperations()
 
         for (operation in operations) {
-
             val listing =
                 listingDao.getListingById(operation.listingId)
                     ?: continue
@@ -30,42 +27,35 @@ class SyncManager(
                 category = listing.category,
                 description = listing.description,
                 imageUrl = listing.imageUrl,
-                updatedAt = listing.updatedAt
+                updatedAt = listing.updatedAt,
+                isFavorite = listing.isFavorite
             )
 
             val serverListing = when (operation.operation) {
-
-                "CREATE" -> {
+                SyncOperationType.CREATE ->
                     listingApi.createListing(apiListing)
-                }
 
-                "UPDATE" -> {
+                SyncOperationType.UPDATE ->
                     listingApi.updateListing(apiListing)
-                }
 
-                else -> {
-                    null
-                }
+                else -> continue
             }
 
-            if (serverListing != null) {
+            val rowsUpdated = listingDao.updateListingIfUnchanged(
+                listingId = listing.id,
+                title = serverListing.title,
+                price = serverListing.price,
+                category = serverListing.category,
+                description = serverListing.description,
+                imageUrl = serverListing.imageUrl,
+                isFavorite = serverListing.isFavorite,
+                serverUpdatedAt = serverListing.updatedAt,
+                expectedUpdatedAt = listing.updatedAt
+            )
 
-                listingDao.insertListings(
-                    listOf(
-                        ListingEntity(
-                            id = serverListing.id,
-                            title = serverListing.title,
-                            price = serverListing.price,
-                            category = serverListing.category,
-                            description = serverListing.description,
-                            imageUrl = serverListing.imageUrl,
-                            isFavorite = listing.isFavorite,
-                            updatedAt = serverListing.updatedAt,
-                            needsSync = false
-                        )
-                    )
-                )
-
+            // Delete only after the local listing was updated successfully.
+            // If a newer edit exists, leave the operation pending for retry.
+            if (rowsUpdated == 1) {
                 syncOperationDao.delete(operation.id)
             }
         }

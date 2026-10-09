@@ -23,11 +23,15 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.offlinemarketplace.R
 import com.example.offlinemarketplace.data.model.Listing
 import com.example.offlinemarketplace.ui.components.ListingCard
 import com.example.offlinemarketplace.viewmodel.BrowseViewModel
+import com.example.offlinemarketplace.viewmodel.SyncStatus
 
 @Composable
 fun BrowseScreen(
@@ -35,69 +39,77 @@ fun BrowseScreen(
     onListingClick: (Listing) -> Unit,
     onCreateListingClick: () -> Unit
 ) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    val listings by viewModel.listings.collectAsStateWithLifecycle()
-
-    val syncStatus by viewModel.syncStatus
-        .collectAsStateWithLifecycle()
-
-    val pendingCount by viewModel.pendingOperationCount
-        .collectAsStateWithLifecycle()
-
-    val isLoading by viewModel.isLoading
-        .collectAsStateWithLifecycle()
-
-    LaunchedEffect(Unit) {
+    LaunchedEffect(viewModel) {
         viewModel.loadInitialListingsIfNeeded()
     }
 
-    Box(
-        modifier = Modifier.fillMaxSize()
-    ) {
+    BrowseContent(
+        listings = uiState.listings,
+        syncStatus = uiState.syncStatus,
+        pendingCount = uiState.pendingOperationCount,
+        isLoading = uiState.isLoading,
+        onSyncNow = viewModel::syncNow,
+        onListingClick = onListingClick,
+        onCreateListingClick = onCreateListingClick,
+        onFavoriteClick = viewModel::toggleFavorite
+    )
+}
 
+@Composable
+private fun BrowseContent(
+    listings: List<Listing>,
+    syncStatus: SyncStatus,
+    pendingCount: Int,
+    isLoading: Boolean,
+    onSyncNow: () -> Unit,
+    onListingClick: (Listing) -> Unit,
+    onCreateListingClick: () -> Unit,
+    onFavoriteClick: (Listing) -> Unit
+) {
+    Box(modifier = Modifier.fillMaxSize()) {
         if (isLoading) {
-
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
+            Column(
+                modifier = Modifier.align(Alignment.Center),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-
-                    CircularProgressIndicator()
-
-                    Text(
-                        text = "Loading listings...",
-                        modifier = Modifier.padding(top = 12.dp),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
+                CircularProgressIndicator()
+                Text(
+                    text = stringResource(R.string.loading_listings),
+                    modifier = Modifier.padding(
+                        top = dimensionResource(R.dimen.browse_loading_top_padding)
+                    ),
+                    style = MaterialTheme.typography.bodyMedium
+                )
             }
-
         } else {
-
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 16.dp)
+                    .padding(
+                        horizontal = dimensionResource(
+                            R.dimen.browse_horizontal_padding
+                        )
+                    )
             ) {
-
                 Column(
                     modifier = Modifier.padding(
-                        top = 20.dp,
-                        bottom = 12.dp
+                        top = dimensionResource(
+                            R.dimen.browse_header_top_padding
+                        ),
+                        bottom = dimensionResource(
+                            R.dimen.browse_header_bottom_padding
+                        )
                     )
                 ) {
-
                     Text(
-                        text = "Marketplace",
+                        text = stringResource(R.string.marketplace_title),
                         style = MaterialTheme.typography.headlineMedium
                     )
 
                     Text(
-                        text = "Browse items available offline",
+                        text = stringResource(R.string.browse_offline_subtitle),
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
@@ -105,78 +117,93 @@ fun BrowseScreen(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     elevation = CardDefaults.cardElevation(
-                        defaultElevation = 2.dp
+                        defaultElevation = dimensionResource(
+                            R.dimen.sync_card_elevation
+                        )
                     )
                 ) {
-
                     Column(
-                        modifier = Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        modifier = Modifier.padding(
+                            dimensionResource(R.dimen.sync_card_padding)
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(
+                            dimensionResource(R.dimen.sync_card_spacing)
+                        )
                     ) {
-
                         Text(
-                            text = when {
-                                pendingCount > 0 ->
-                                    "Changes waiting to sync: $pendingCount"
+                            text = when (syncStatus) {
+                                SyncStatus.NOT_SYNCED ->
+                                    stringResource(R.string.sync_not_started)
 
-                                syncStatus == "Syncing..." ->
-                                    "Syncing changes..."
+                                SyncStatus.PENDING ->
+                                    stringResource(
+                                        R.string.sync_pending,
+                                        pendingCount
+                                    )
 
-                                syncStatus == "Sync complete" ->
-                                    "All changes synced"
+                                SyncStatus.SYNCING ->
+                                    stringResource(R.string.syncing_changes)
 
-                                syncStatus == "Sync failed" ->
-                                    "Sync failed — try again"
+                                SyncStatus.SYNCED ->
+                                    stringResource(R.string.sync_complete)
 
-                                else ->
-                                    "All changes synced"
-                            },
-                            style = MaterialTheme.typography.bodyMedium
+                                SyncStatus.FAILED ->
+                                    stringResource(R.string.sync_failed)
+                            }
                         )
 
                         Button(
-                            onClick = {
-                                viewModel.syncNow()
-                            },
+                            onClick = onSyncNow,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Sync Now")
+                            Text(stringResource(R.string.sync_now))
                         }
                     }
                 }
 
                 Text(
-                    text = "${listings.size} Listings",
+                    text = stringResource(
+                        R.string.listing_count,
+                        listings.size
+                    ),
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.padding(
-                        top = 16.dp,
-                        bottom = 8.dp
+                        top = dimensionResource(
+                            R.dimen.listing_count_top_padding
+                        ),
+                        bottom = dimensionResource(
+                            R.dimen.listing_count_bottom_padding
+                        )
                     )
                 )
 
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.weight(1f),
                     contentPadding = PaddingValues(
-                        top = 4.dp,
-                        bottom = 100.dp
+                        top = dimensionResource(
+                            R.dimen.grid_content_top_padding
+                        ),
+                        bottom = dimensionResource(
+                            R.dimen.grid_content_bottom_padding
+                        )
                     ),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(
+                        dimensionResource(R.dimen.grid_item_spacing)
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(
+                        dimensionResource(R.dimen.grid_item_spacing)
+                    )
                 ) {
-
                     items(
                         items = listings,
                         key = { it.id }
                     ) { listing ->
-
                         ListingCard(
                             listing = listing,
-                            onClick = {
-                                onListingClick(listing)
-                            },
+                            onClick = { onListingClick(listing) },
                             onFavoriteClick = {
-                                viewModel.toggleFavorite(listing)
+                                onFavoriteClick(listing)
                             }
                         )
                     }
@@ -188,12 +215,48 @@ fun BrowseScreen(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .navigationBarsPadding()
-                    .padding(20.dp)
+                    .padding(dimensionResource(R.dimen.fab_padding))
             ) {
-                Text(
-                    text = "+"
-                )
+                Text("+")
             }
         }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun BrowseContentPreview() {
+    val sampleListings = listOf(
+        Listing(
+            id = 1L,
+            title = "Study Table",
+            price = 1500.0,
+            category = "Furniture",
+            description = "A wooden study table in good condition.",
+            imageUrl = "",
+            isFavorite = false
+        ),
+        Listing(
+            id = 2L,
+            title = "Headphones",
+            price = 800.0,
+            category = "Electronics",
+            description = "Headphones in excellent condition.",
+            imageUrl = "",
+            isFavorite = true
+        )
+    )
+
+    MaterialTheme {
+        BrowseContent(
+            listings = sampleListings,
+            syncStatus = SyncStatus.SYNCED,
+            pendingCount = 0,
+            isLoading = false,
+            onSyncNow = {},
+            onListingClick = {},
+            onCreateListingClick = {},
+            onFavoriteClick = {}
+        )
     }
 }
