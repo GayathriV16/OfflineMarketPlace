@@ -1,12 +1,12 @@
 package com.example.offlinemarketplace.domain.usecases
 
-import android.content.Context
-import com.example.offlinemarketplace.data.repository.ListingRepository
-import com.example.offlinemarketplace.sync.SyncScheduler
+import com.example.offlinemarketplace.domain.repository.ListingRepository
+import com.example.offlinemarketplace.domain.repository.SyncRequestScheduler
+import javax.inject.Inject
 
-class ToggleFavoriteUseCase(
+class ToggleFavoriteUseCase @Inject constructor(
     private val repository: ListingRepository,
-    private val context: Context
+    private val syncScheduler: SyncRequestScheduler
 ) {
     suspend operator fun invoke(
         listingId: Long,
@@ -16,6 +16,6 @@ class ToggleFavoriteUseCase(
             listingId = listingId,
             isFavorite = isFavorite
         )
-        SyncScheduler.scheduleSync(context)
+        syncScheduler.scheduleSync()
     }
 }

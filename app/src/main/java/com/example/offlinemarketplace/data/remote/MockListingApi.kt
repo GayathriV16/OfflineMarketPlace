@@ -108,27 +108,24 @@ class MockListingApi private constructor() : ListingApi {
         return serverListing
     }
 
+
     override suspend fun updateListing(
         listing: ApiListing
     ): ApiListing {
-
         delay(300)
 
-        val existingListing =
-            listings[listing.id]
+        // Accept the pending local update in this mock API.
+        // The mock server's in-memory data resets when the app process restarts.
+        val serverListing = listing.copy(
+            updatedAt = maxOf(
+                System.currentTimeMillis(),
+                listing.updatedAt
+            )
+        )
 
-        return if (
-            existingListing == null ||
-            listing.updatedAt >= existingListing.updatedAt
-        ) {
+        listings[serverListing.id] = serverListing
 
-            listings[listing.id] = listing
-
-            listing
-
-        } else {
-
-            existingListing
-        }
+        return serverListing
     }
+
 }

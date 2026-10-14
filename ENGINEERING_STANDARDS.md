@@ -37,7 +37,7 @@ This document defines the coding conventions, architectural principles, data-han
 
 ### Data Layer
 
-* `ListingRepository` coordinates local listing operations and pending sync records.
+* `ListingRepositoryImpl` coordinates local listing operations and pending sync records.
 * DAOs are responsible for Room queries.
 * `ListingApi` abstracts remote operations.
 * `MockListingApi` provides the current in-memory API implementation.

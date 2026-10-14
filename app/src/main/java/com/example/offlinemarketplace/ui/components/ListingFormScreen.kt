@@ -1,6 +1,7 @@
 package com.example.offlinemarketplace.ui.components
 
 import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
@@ -8,6 +9,7 @@ import android.provider.MediaStore
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,6 +23,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -34,6 +37,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,46 +50,51 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import coil3.compose.AsyncImage
 import com.example.offlinemarketplace.R
+import com.example.offlinemarketplace.domain.model.Listing
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 @Composable
 fun ListingFormScreen(
     isEditMode: Boolean,
+    isSaving: Boolean = false,
+    @StringRes saveErrorResId: Int? = null,
     initialTitle: String = "",
     initialPrice: String = "",
     initialCategory: String = "",
     initialDescription: String = "",
     initialImageUri: String? = null,
-    onSave: (
-        title: String,
-        price: Double,
-        category: String,
-        description: String,
-        imageUri: String?
-    ) -> Unit,
+    onSave: (Listing) -> Unit,
     onCancel: () -> Unit
 ) {
-    var title by remember(isEditMode, initialTitle) {
+    // Preserve entered values across configuration changes.
+    // Keying by isEditMode prevents background updates from
+    // unexpectedly resetting the user's input.
+    var title by rememberSaveable(isEditMode) {
         mutableStateOf(initialTitle)
     }
 
-    var price by remember(isEditMode, initialPrice) {
+    var price by rememberSaveable(isEditMode) {
         mutableStateOf(initialPrice)
     }
 
-    var category by remember(isEditMode, initialCategory) {
+    var category by rememberSaveable(isEditMode) {
         mutableStateOf(initialCategory)
     }
 
-    var description by remember(isEditMode, initialDescription) {
+    var description by rememberSaveable(isEditMode) {
         mutableStateOf(initialDescription)
     }
 
-    var selectedImageUri by remember(isEditMode, initialImageUri) {
-        mutableStateOf(initialImageUri?.let(Uri::parse))
+    // Store the image URI as a String so it can be saved.
+    var selectedImageUri by rememberSaveable(isEditMode) {
+        mutableStateOf(initialImageUri)
     }
 
     var errorMessageResId by remember {
@@ -92,6 +102,7 @@ fun ListingFormScreen(
     }
 
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
@@ -104,28 +115,42 @@ fun ListingFormScreen(
         rememberLauncherForActivityResult(
             contract = ActivityResultContracts.PickVisualMedia()
         ) { uri ->
-            uri?.let {
-                try {
-                    context.contentResolver.openInputStream(it)?.use { input ->
+            if (uri == null) {
+                return@rememberLauncherForActivityResult
+            }
+
+            scope.launch {
+                // Copy the selected image into app-private storage.
+                val result = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val input = context.contentResolver
+                            .openInputStream(uri)
+                            ?: error("Could not open selected photo")
+
                         val file = File(
                             context.filesDir,
                             "listing_${System.currentTimeMillis()}.jpg"
                         )
 
-                        file.outputStream().use { output ->
-                            input.copyTo(output)
+                        input.use { source ->
+                            file.outputStream().use { output ->
+                                source.copyTo(output)
+                            }
                         }
 
-                        selectedImageUri = Uri.fromFile(file)
-                        errorMessageResId = 0
-                    } ?: run {
-                        errorMessageResId =
-                            R.string.error_read_selected_photo
+                        Uri.fromFile(file).toString()
                     }
-                } catch (e: Exception) {
-                    errorMessageResId =
-                        R.string.error_save_selected_photo
                 }
+
+                result
+                    .onSuccess {
+                        selectedImageUri = it
+                        errorMessageResId = 0
+                    }
+                    .onFailure {
+                        errorMessageResId =
+                            R.string.error_save_selected_photo
+                    }
             }
         }
 
@@ -133,34 +158,53 @@ fun ListingFormScreen(
         rememberLauncherForActivityResult(
             contract = ActivityResultContracts.StartActivityForResult()
         ) { result ->
-            if (result.resultCode == Activity.RESULT_OK) {
-                val bitmap = result.data?.extras?.get("data") as? Bitmap
+            if (result.resultCode != Activity.RESULT_OK) {
+                return@rememberLauncherForActivityResult
+            }
 
-                if (bitmap != null) {
-                    try {
+            val bitmap = result.data
+                ?.extras
+                ?.get("data") as? Bitmap
+
+            if (bitmap == null) {
+                errorMessageResId =
+                    R.string.error_save_captured_photo
+                return@rememberLauncherForActivityResult
+            }
+
+            scope.launch {
+                val saved = withContext(Dispatchers.IO) {
+                    runCatching {
                         val file = File(
                             context.filesDir,
                             "camera_${System.currentTimeMillis()}.jpg"
                         )
 
                         file.outputStream().use { output ->
-                            bitmap.compress(
+                            val compressed = bitmap.compress(
                                 Bitmap.CompressFormat.JPEG,
                                 85,
                                 output
                             )
+
+                            check(compressed) {
+                                "Failed to compress camera image"
+                            }
                         }
 
-                        selectedImageUri = Uri.fromFile(file)
+                        Uri.fromFile(file).toString()
+                    }
+                }
+
+                saved
+                    .onSuccess {
+                        selectedImageUri = it
                         errorMessageResId = 0
-                    } catch (e: Exception) {
+                    }
+                    .onFailure {
                         errorMessageResId =
                             R.string.error_save_captured_photo
                     }
-                } else {
-                    errorMessageResId =
-                        R.string.error_save_captured_photo
-                }
             }
         }
 
@@ -216,6 +260,9 @@ fun ListingFormScreen(
             label = {
                 Text(stringResource(R.string.price_label))
             },
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Decimal
+            ),
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -255,16 +302,19 @@ fun ListingFormScreen(
                 dimensionResource(R.dimen.card_corner_radius)
             ),
             elevation = CardDefaults.cardElevation(
-                defaultElevation = dimensionResource(R.dimen.card_elevation)
+                defaultElevation =
+                    dimensionResource(R.dimen.card_elevation)
             )
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(dimensionResource(R.dimen.card_padding)),
+                    .padding(
+                        dimensionResource(R.dimen.card_padding)
+                    ),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                if (selectedImageUri != null) {
+                if (!selectedImageUri.isNullOrBlank()) {
                     AsyncImage(
                         model = selectedImageUri,
                         contentDescription = stringResource(
@@ -273,11 +323,15 @@ fun ListingFormScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(
-                                dimensionResource(R.dimen.listing_image_height)
+                                dimensionResource(
+                                    R.dimen.listing_image_height
+                                )
                             )
                             .clip(
                                 RoundedCornerShape(
-                                    dimensionResource(R.dimen.image_corner_radius)
+                                    dimensionResource(
+                                        R.dimen.image_corner_radius
+                                    )
                                 )
                             ),
                         contentScale = ContentScale.Crop
@@ -287,14 +341,22 @@ fun ListingFormScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(
-                                dimensionResource(R.dimen.listing_image_height)
+                                dimensionResource(
+                                    R.dimen.listing_image_height
+                                )
                             )
                             .clip(
                                 RoundedCornerShape(
-                                    dimensionResource(R.dimen.image_corner_radius)
+                                    dimensionResource(
+                                        R.dimen.image_corner_radius
+                                    )
                                 )
                             )
-                            .background(colorResource(R.color.image_placeholder_background)),
+                            .background(
+                                colorResource(
+                                    R.color.image_placeholder_background
+                                )
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -305,7 +367,9 @@ fun ListingFormScreen(
 
                 Spacer(
                     Modifier.height(
-                        dimensionResource(R.dimen.photo_placeholder_spacing)
+                        dimensionResource(
+                            R.dimen.photo_placeholder_spacing
+                        )
                     )
                 )
 
@@ -318,6 +382,7 @@ fun ListingFormScreen(
                     Button(
                         onClick = {
                             hideKeyboard()
+
                             imagePickerLauncher.launch(
                                 PickVisualMediaRequest(
                                     ActivityResultContracts
@@ -333,9 +398,17 @@ fun ListingFormScreen(
                     Button(
                         onClick = {
                             hideKeyboard()
-                            cameraLauncher.launch(
-                                Intent(MediaStore.ACTION_IMAGE_CAPTURE)
-                            )
+
+                            try {
+                                cameraLauncher.launch(
+                                    Intent(
+                                        MediaStore.ACTION_IMAGE_CAPTURE
+                                    )
+                                )
+                            } catch (e: ActivityNotFoundException) {
+                                errorMessageResId =
+                                    R.string.error_save_captured_photo
+                            }
                         },
                         modifier = Modifier.weight(1f)
                     ) {
@@ -345,15 +418,25 @@ fun ListingFormScreen(
             }
         }
 
-        if (errorMessageResId != 0) {
+        // Display local validation/photo errors before save errors.
+        val visibleErrorResId =
+            if (errorMessageResId != 0) {
+                errorMessageResId
+            } else {
+                saveErrorResId
+            }
+
+        if (visibleErrorResId != null) {
             Text(
-                text = stringResource(errorMessageResId),
+                text = stringResource(visibleErrorResId),
                 color = MaterialTheme.colorScheme.error
             )
         }
 
         Button(
+            enabled = !isSaving,
             onClick = {
+                if (isSaving) return@Button
                 val priceValue = price.toDoubleOrNull()
 
                 when {
@@ -376,12 +459,16 @@ fun ListingFormScreen(
 
                     else -> {
                         hideKeyboard()
+
                         onSave(
-                            title.trim(),
-                            priceValue,
-                            category.trim(),
-                            description.trim(),
-                            selectedImageUri?.toString()
+                            Listing(
+                                id = 0L,
+                                title = title.trim(),
+                                price = priceValue,
+                                category = category.trim(),
+                                description = description.trim(),
+                                imageUrl = selectedImageUri
+                            )
                         )
                     }
                 }
@@ -403,6 +490,7 @@ fun ListingFormScreen(
         }
 
         TextButton(
+            enabled = !isSaving,
             onClick = {
                 hideKeyboard()
                 onCancel()
@@ -420,7 +508,7 @@ private fun CreateListingPreview() {
     MaterialTheme {
         ListingFormScreen(
             isEditMode = false,
-            onSave = { _, _, _, _, _ -> },
+            onSave = {},
             onCancel = {}
         )
     }
@@ -432,7 +520,7 @@ private fun ListingDetailPreview() {
     MaterialTheme {
         ListingFormScreen(
             isEditMode = true,
-            onSave = { _, _, _, _, _ -> },
+            onSave = {},
             onCancel = {}
         )
     }

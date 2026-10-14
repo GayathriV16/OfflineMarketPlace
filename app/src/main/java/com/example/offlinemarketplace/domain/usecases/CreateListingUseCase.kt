@@ -1,16 +1,26 @@
 package com.example.offlinemarketplace.domain.usecases
 
-import com.example.offlinemarketplace.data.model.Listing
-import com.example.offlinemarketplace.data.repository.ListingRepository
-import com.example.offlinemarketplace.sync.SyncScheduler
-import android.content.Context
+import com.example.offlinemarketplace.domain.model.Listing
+import com.example.offlinemarketplace.domain.repository.ListingRepository
+import com.example.offlinemarketplace.domain.repository.SyncRequestScheduler
+import javax.inject.Inject
 
-class CreateListingUseCase(
+class CreateListingUseCase @Inject constructor(
     private val repository: ListingRepository,
-    private val context: Context
+    private val syncScheduler: SyncRequestScheduler
 ) {
-    suspend operator fun invoke(listing: Listing) {
+    suspend operator fun invoke(draft: Listing) {
+        val listing = Listing(
+            id = System.currentTimeMillis(),
+            title = draft.title,
+            price = draft.price,
+            category = draft.category,
+            description = draft.description,
+            imageUrl = draft.imageUrl,
+            isFavorite = false
+        )
+
         repository.createListingOffline(listing)
-        SyncScheduler.scheduleSync(context)
+        syncScheduler.scheduleSync()
     }
 }

@@ -1,9 +1,16 @@
 package com.example.offlinemarketplace.navigation
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -13,118 +20,106 @@ import com.example.offlinemarketplace.ui.browse.BrowseScreen
 import com.example.offlinemarketplace.ui.create.CreateListingScreen
 import com.example.offlinemarketplace.ui.details.DetailsScreen
 import com.example.offlinemarketplace.viewmodel.BrowseViewModel
+import com.example.offlinemarketplace.viewmodel.DetailsUiState
+import com.example.offlinemarketplace.viewmodel.DetailsViewModel
 import com.example.offlinemarketplace.viewmodel.ListingFormViewModel
 
 private object AppRoutes {
     const val BROWSE = "browse"
     const val CREATE_LISTING = "create_listing"
-    const val DETAILS = "details/{listingId}"
+    const val LISTING_ID_ARG = "listingId"
+    const val DETAILS = "details/{$LISTING_ID_ARG}"
 
-    fun details(listingId: Long): String {
-        return "details/$listingId"
-    }
+    fun details(listingId: Long): String = "details/$listingId"
 }
 
 @Composable
 fun AppNavigation(
-    browseViewModel: BrowseViewModel,
-    listingFormViewModel: ListingFormViewModel
+    navController: NavHostController = rememberNavController()
 ) {
-    val navController = rememberNavController()
-
-    val uiState by browseViewModel.uiState.collectAsStateWithLifecycle()
-    val listings = uiState.listings
-
     NavHost(
         navController = navController,
         startDestination = AppRoutes.BROWSE
     ) {
         composable(AppRoutes.BROWSE) {
+            val viewModel: BrowseViewModel = hiltViewModel()
+            val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
             BrowseScreen(
-                viewModel = browseViewModel,
+                uiState = uiState,
+                events = viewModel.events,
+                onSyncNow = viewModel::syncNow,
+                onFavoriteClick = { listingId, isFavorite ->
+                    viewModel.toggleFavorite(listingId, isFavorite)
+                },
                 onListingClick = { listing ->
-                    navController.navigate(
-                        AppRoutes.details(listing.id)
-                    )
+                    navController.navigate(AppRoutes.details(listing.id))
                 },
                 onCreateListingClick = {
-                    navController.navigate(
-                        AppRoutes.CREATE_LISTING
-                    )
+                    navController.navigate(AppRoutes.CREATE_LISTING)
                 }
             )
         }
 
         composable(AppRoutes.CREATE_LISTING) {
+            val viewModel: ListingFormViewModel = hiltViewModel()
+            val formState by viewModel.uiState.collectAsStateWithLifecycle()
+
+            ListingFormNavigationHandler(
+                events = viewModel.events,
+                navController = navController
+            )
+
             CreateListingScreen(
-                onBackClick = {
-                    navController.popBackStack()
-                },
-                onListingCreated = { title,
-                                     price,
-                                     category,
-                                     description,
-                                     imageUri ->
-
-                    listingFormViewModel.createListing(
-                        title = title,
-                        price = price,
-                        category = category,
-                        description = description,
-                        imageUri = imageUri
-                    )
-
-                    navController.popBackStack()
-                }
+                isSaving = formState.isSaving,
+                saveErrorResId = formState.errorResId,
+                onBackClick = { navController.popBackStack() },
+                onSave = { draft -> viewModel.save(draft) }
             )
         }
 
         composable(
             route = AppRoutes.DETAILS,
             arguments = listOf(
-                navArgument("listingId") {
-                    type = NavType.LongType
-                }
+                navArgument(AppRoutes.LISTING_ID_ARG) { type = NavType.LongType }
             )
-        ) { backStackEntry ->
+        ) {
+            val detailsViewModel: DetailsViewModel = hiltViewModel()
+            val formViewModel: ListingFormViewModel = hiltViewModel()
 
-            val listingId = backStackEntry
-                .arguments
-                ?.getLong("listingId")
+            val detailsState by detailsViewModel.uiState.collectAsStateWithLifecycle()
+            val formState by formViewModel.uiState.collectAsStateWithLifecycle()
 
-            val listing = listingId?.let { id ->
-                listings.firstOrNull { it.id == id }
-            }
+            ListingFormNavigationHandler(
+                events = formViewModel.events,
+                navController = navController
+            )
 
-            if (listing == null) {
-                LaunchedEffect(listingId) {
-                    navController.popBackStack()
-                }
-            } else {
-                DetailsScreen(
-                    listing = listing,
-                    onBackClick = {
-                        navController.popBackStack()
-                    },
-                    onListingUpdated = { title,
-                                         price,
-                                         category,
-                                         description,
-                                         imageUri ->
-
-                        listingFormViewModel.updateListing(
-                            listingId = listing.id,
-                            title = title,
-                            price = price,
-                            category = category,
-                            description = description,
-                            imageUri = imageUri,
-                            onComplete = {
-                                navController.popBackStack()
-                            }
-                        )
+            when (val state = detailsState) {
+                DetailsUiState.Loading -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
                     }
-                )
+                }
+
+                DetailsUiState.NotFound -> {
+                    LaunchedEffect(Unit) { navController.popBackStack() }
+                }
+
+                is DetailsUiState.Content -> {
+                    DetailsScreen(
+                        listing = state.listing,
+                        isSaving = formState.isSaving,
+                        saveErrorResId = formState.errorResId,
+                        onBackClick = { navController.popBackStack() },
+                        onSave = { draft ->
+                            formViewModel.save(draft, listingId = state.listing.id)
+                        }
+                    )
+                }
             }
         }
     }

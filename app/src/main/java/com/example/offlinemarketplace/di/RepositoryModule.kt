@@ -1,11 +1,12 @@
 package com.example.offlinemarketplace.di
 
-import com.example.offlinemarketplace.data.local.ListingDao
-import com.example.offlinemarketplace.data.local.SyncOperationDao
 import com.example.offlinemarketplace.data.remote.ListingApi
 import com.example.offlinemarketplace.data.remote.MockListingApi
-import com.example.offlinemarketplace.data.repository.ListingRepository
-import com.example.offlinemarketplace.sync.SyncManager
+import com.example.offlinemarketplace.data.repository.ListingRepositoryImpl
+import com.example.offlinemarketplace.data.repository.SyncRepositoryImpl
+import com.example.offlinemarketplace.domain.repository.ListingRepository
+import com.example.offlinemarketplace.domain.repository.SyncRepository
+import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -14,40 +15,25 @@ import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
-object RepositoryModule {
+abstract class RepositoryModule {
 
-    @Provides
+    @Binds
     @Singleton
-    fun provideListingApi(): ListingApi {
-        return MockListingApi.instance
-    }
+    abstract fun bindListingRepository(
+        implementation: ListingRepositoryImpl
+    ): ListingRepository
 
-    @Provides
+    @Binds
     @Singleton
-    fun provideListingRepository(
-        listingDao: ListingDao,
-        syncOperationDao: SyncOperationDao,
-        listingApi: ListingApi
-    ): ListingRepository {
-        return ListingRepository(
-            listingDao = listingDao,
-            syncOperationDao = syncOperationDao,
-            listingApi = listingApi
-        )
-    }
+    abstract fun bindSyncRepository(
+        implementation: SyncRepositoryImpl
+    ): SyncRepository
 
-    @Provides
-    @Singleton
-    fun provideSyncManager(
-        listingDao: ListingDao,
-        syncOperationDao: SyncOperationDao,
-        listingApi: ListingApi
-    ): SyncManager {
-        return SyncManager(
-            listingDao = listingDao,
-            syncOperationDao = syncOperationDao,
-            listingApi = listingApi
-        )
+    companion object {
+        @Provides
+        @Singleton
+        fun provideListingApi(): ListingApi {
+            return MockListingApi.instance
+        }
     }
-
 }

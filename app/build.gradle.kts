@@ -55,6 +55,7 @@ dependencies {
     implementation(libs.retrofit.converter.gson)
     implementation(libs.work.runtime.ktx)
     implementation("io.coil-kt.coil3:coil-compose:3.3.0")
+    implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
     implementation(libs.hilt.android)
     ksp(libs.hilt.android.compiler)
     implementation(libs.androidx.hilt.work)

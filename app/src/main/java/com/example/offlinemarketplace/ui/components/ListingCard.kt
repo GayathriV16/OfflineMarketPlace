@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -21,10 +22,13 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.tooling.preview.Preview
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import com.example.offlinemarketplace.R
-import com.example.offlinemarketplace.data.model.Listing
+import com.example.offlinemarketplace.domain.model.Listing
 
 @Composable
 fun ListingCard(
@@ -33,7 +37,13 @@ fun ListingCard(
     onFavoriteClick: () -> Unit
 ) {
     val context = LocalContext.current
-
+    val favoriteDescription = stringResource(
+        if (listing.isFavorite) {
+            R.string.remove_from_favorites
+        } else {
+            R.string.add_to_favorites
+        }
+    )
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -104,12 +114,11 @@ fun ListingCard(
                     onClick = onFavoriteClick,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(
-                            dimensionResource(R.dimen.favorite_button_padding)
-                        )
-                        .size(
-                            dimensionResource(R.dimen.favorite_button_size)
-                        )
+                        .padding(dimensionResource(R.dimen.favorite_button_padding))
+                        .size(dimensionResource(R.dimen.favorite_button_size))
+                        .semantics {
+                            contentDescription = favoriteDescription
+                        }
                 ) {
                     Text(
                         text = stringResource(
@@ -151,6 +160,30 @@ fun ListingCard(
                     style = MaterialTheme.typography.bodySmall
                 )
             }
+        }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun ListingCardPreview() {
+    val sampleListing = Listing(
+        id = 1L,
+        title = "Study Table",
+        price = 1500.0,
+        category = "Furniture",
+        description = "A wooden study table in good condition.",
+        imageUrl = "",
+        isFavorite = true
+    )
+
+    MaterialTheme {
+        Surface {
+            ListingCard(
+                listing = sampleListing,
+                onClick = {},
+                onFavoriteClick = {}
+            )
         }
     }
 }

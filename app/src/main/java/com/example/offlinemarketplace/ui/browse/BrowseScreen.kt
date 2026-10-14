@@ -1,3 +1,4 @@
+
 package com.example.offlinemarketplace.ui.browse
 
 import androidx.compose.foundation.layout.Arrangement
@@ -17,44 +18,75 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.offlinemarketplace.R
-import com.example.offlinemarketplace.data.model.Listing
+import com.example.offlinemarketplace.domain.model.Listing
 import com.example.offlinemarketplace.ui.components.ListingCard
-import com.example.offlinemarketplace.viewmodel.BrowseViewModel
+import com.example.offlinemarketplace.ui.util.ObserveAsEvents
+import com.example.offlinemarketplace.viewmodel.BrowseEvent
 import com.example.offlinemarketplace.viewmodel.SyncStatus
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
 
 @Composable
 fun BrowseScreen(
-    viewModel: BrowseViewModel,
+    uiState: BrowseUiState,
+    events: Flow<BrowseEvent>,
+    onSyncNow: () -> Unit,
+    onFavoriteClick: (Long, Boolean) -> Unit,
     onListingClick: (Listing) -> Unit,
     onCreateListingClick: () -> Unit
 ) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
-    LaunchedEffect(viewModel) {
-        viewModel.loadInitialListingsIfNeeded()
+    val favoriteFailed =
+        stringResource(R.string.error_favorite_update_failed)
+    val loadFailed =
+        stringResource(R.string.error_initial_load_failed)
+
+    ObserveAsEvents(events) { event ->
+        val message = when (event) {
+            BrowseEvent.FavoriteUpdateFailed -> favoriteFailed
+            BrowseEvent.InitialLoadFailed -> loadFailed
+        }
+
+        scope.launch {
+            snackbarHostState.showSnackbar(message)
+        }
     }
 
-    BrowseContent(
-        listings = uiState.listings,
-        syncStatus = uiState.syncStatus,
-        pendingCount = uiState.pendingOperationCount,
-        isLoading = uiState.isLoading,
-        onSyncNow = viewModel::syncNow,
-        onListingClick = onListingClick,
-        onCreateListingClick = onCreateListingClick,
-        onFavoriteClick = viewModel::toggleFavorite
-    )
+    Box(modifier = Modifier.fillMaxSize()) {
+        BrowseContent(
+            listings = uiState.listings,
+            syncStatus = uiState.syncStatus,
+            pendingCount = uiState.pendingOperationCount,
+            isLoading = uiState.isLoading,
+            onSyncNow = onSyncNow,
+            onListingClick = onListingClick,
+            onCreateListingClick = onCreateListingClick,
+            onFavoriteClick = onFavoriteClick
+        )
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+        )
+    }
 }
 
 @Composable
@@ -66,8 +98,11 @@ private fun BrowseContent(
     onSyncNow: () -> Unit,
     onListingClick: (Listing) -> Unit,
     onCreateListingClick: () -> Unit,
-    onFavoriteClick: (Listing) -> Unit
+    onFavoriteClick: (Long, Boolean) -> Unit
 ) {
+    val createListingDescription =
+        stringResource(R.string.create_listing)
+
     Box(modifier = Modifier.fillMaxSize()) {
         if (isLoading) {
             Column(
@@ -75,10 +110,13 @@ private fun BrowseContent(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 CircularProgressIndicator()
+
                 Text(
                     text = stringResource(R.string.loading_listings),
                     modifier = Modifier.padding(
-                        top = dimensionResource(R.dimen.browse_loading_top_padding)
+                        top = dimensionResource(
+                            R.dimen.browse_loading_top_padding
+                        )
                     ),
                     style = MaterialTheme.typography.bodyMedium
                 )
@@ -109,7 +147,9 @@ private fun BrowseContent(
                     )
 
                     Text(
-                        text = stringResource(R.string.browse_offline_subtitle),
+                        text = stringResource(
+                            R.string.browse_offline_subtitle
+                        ),
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
@@ -197,13 +237,18 @@ private fun BrowseContent(
                 ) {
                     items(
                         items = listings,
-                        key = { it.id }
+                        key = { listing -> listing.id }
                     ) { listing ->
                         ListingCard(
                             listing = listing,
-                            onClick = { onListingClick(listing) },
+                            onClick = {
+                                onListingClick(listing)
+                            },
                             onFavoriteClick = {
-                                onFavoriteClick(listing)
+                                onFavoriteClick(
+                                    listing.id,
+                                    listing.isFavorite
+                                )
                             }
                         )
                     }
@@ -216,6 +261,9 @@ private fun BrowseContent(
                     .align(Alignment.BottomEnd)
                     .navigationBarsPadding()
                     .padding(dimensionResource(R.dimen.fab_padding))
+                    .semantics {
+                        contentDescription = createListingDescription
+                    }
             ) {
                 Text("+")
             }
@@ -256,7 +304,7 @@ private fun BrowseContentPreview() {
             onSyncNow = {},
             onListingClick = {},
             onCreateListingClick = {},
-            onFavoriteClick = {}
+            onFavoriteClick = { _, _ -> }
         )
     }
 }

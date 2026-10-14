@@ -1,6 +1,7 @@
 package com.example.offlinemarketplace.domain.usecases
 
-import com.example.offlinemarketplace.data.repository.ListingRepository
+import com.example.offlinemarketplace.data.repository.ListingRepositoryImpl
+import com.example.offlinemarketplace.domain.repository.ListingRepository
 import kotlinx.coroutines.flow.Flow
 
 class ObservePendingOperationsUseCase(

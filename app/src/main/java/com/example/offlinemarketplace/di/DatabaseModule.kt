@@ -3,6 +3,8 @@ package com.example.offlinemarketplace.di
 import android.content.Context
 import androidx.room.Room
 import com.example.offlinemarketplace.data.local.AppDatabase
+import com.example.offlinemarketplace.data.local.ListingDao
+import com.example.offlinemarketplace.data.local.SyncOperationDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -29,10 +31,10 @@ object DatabaseModule {
     @Provides
     fun provideListingDao(
         database: AppDatabase
-    ) = database.listingDao()
+    ): ListingDao = database.listingDao()
 
     @Provides
     fun provideSyncOperationDao(
         database: AppDatabase
-    ) = database.syncOperationDao()
+    ): SyncOperationDao = database.syncOperationDao()
 }

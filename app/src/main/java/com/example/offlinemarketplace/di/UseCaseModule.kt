@@ -1,21 +1,16 @@
 package com.example.offlinemarketplace.di
 
-import android.content.Context
-import com.example.offlinemarketplace.data.repository.ListingRepository
-import com.example.offlinemarketplace.domain.usecases.CreateListingUseCase
+import com.example.offlinemarketplace.domain.repository.ListingRepository
+import com.example.offlinemarketplace.domain.repository.SyncRepository
+import com.example.offlinemarketplace.domain.repository.SyncRequestScheduler
 import com.example.offlinemarketplace.domain.usecases.LoadInitialListingsUseCase
 import com.example.offlinemarketplace.domain.usecases.ObserveListingsUseCase
 import com.example.offlinemarketplace.domain.usecases.ObservePendingOperationsUseCase
 import com.example.offlinemarketplace.domain.usecases.SyncListingsUseCase
-import com.example.offlinemarketplace.domain.usecases.ToggleFavoriteUseCase
-import com.example.offlinemarketplace.domain.usecases.UpdateListingUseCase
-import com.example.offlinemarketplace.sync.SyncManager
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
-import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -24,39 +19,29 @@ object UseCaseModule {
     @Provides
     fun provideObserveListingsUseCase(
         repository: ListingRepository
-    ) = ObserveListingsUseCase(repository)
+    ): ObserveListingsUseCase {
+        return ObserveListingsUseCase(repository)
+    }
 
     @Provides
     fun provideObservePendingOperationsUseCase(
         repository: ListingRepository
-    ) = ObservePendingOperationsUseCase(repository)
-
-    @Provides
-    fun provideToggleFavoriteUseCase(
-        repository: ListingRepository,
-        @ApplicationContext context: Context
-    ) = ToggleFavoriteUseCase(repository, context)
-
-    @Provides
-    fun provideCreateListingUseCase(
-        repository: ListingRepository,
-        @ApplicationContext context: Context
-    ) = CreateListingUseCase(repository, context)
-
-    @Provides
-    fun provideUpdateListingUseCase(
-        repository: ListingRepository,
-        @ApplicationContext context: Context
-    ) = UpdateListingUseCase(repository, context)
+    ): ObservePendingOperationsUseCase {
+        return ObservePendingOperationsUseCase(repository)
+    }
 
     @Provides
     fun provideLoadInitialListingsUseCase(
         repository: ListingRepository,
-        @ApplicationContext context: Context
-    ) = LoadInitialListingsUseCase(repository, context)
+        syncRequestScheduler: SyncRequestScheduler
+    ): LoadInitialListingsUseCase {
+        return LoadInitialListingsUseCase(repository, syncRequestScheduler)
+    }
 
     @Provides
     fun provideSyncListingsUseCase(
-        syncManager: SyncManager
-    ) = SyncListingsUseCase(syncManager)
+        syncRepository: SyncRepository
+    ): SyncListingsUseCase {
+        return SyncListingsUseCase(syncRepository)
+    }
 }
