@@ -1,7 +1,7 @@
+
 package com.example.offlinemarketplace.data.repository
 
-import androidx.room.withTransaction
-import com.example.offlinemarketplace.data.local.AppDatabase
+import com.example.offlinemarketplace.data.local.LocalListingDataSource
 import com.example.offlinemarketplace.data.remote.ApiListing
 import com.example.offlinemarketplace.data.remote.ListingApi
 import com.example.offlinemarketplace.domain.repository.SyncRepository
@@ -13,7 +13,7 @@ import javax.inject.Singleton
 
 @Singleton
 class SyncRepositoryImpl @Inject constructor(
-    private val database: AppDatabase,
+    private val localDataSource: LocalListingDataSource,
     private val listingApi: ListingApi
 ) : SyncRepository {
 
@@ -21,17 +21,15 @@ class SyncRepositoryImpl @Inject constructor(
 
     override suspend fun syncPendingOperations() {
         syncMutex.withLock {
-            val listingDao = database.listingDao()
-            val syncOperationDao = database.syncOperationDao()
-            val operations = syncOperationDao.getPendingOperations()
+            val operations = localDataSource.getPendingOperations()
 
             for (operation in operations) {
-                val listing = listingDao.getListingById(operation.listingId)
+                val listing = localDataSource.getListingById(
+                    operation.listingId
+                )
 
                 if (listing == null) {
-                    database.withTransaction {
-                        syncOperationDao.delete(operation.id)
-                    }
+                    localDataSource.removeOperation(operation.id)
                     continue
                 }
 
@@ -54,8 +52,9 @@ class SyncRepositoryImpl @Inject constructor(
                         listingApi.updateListing(apiListing)
                 }
 
-                val rowsUpdated = database.withTransaction {
-                    val updatedRows = listingDao.updateListingIfUnchanged(
+                val rowsUpdated =
+                    localDataSource.completeSyncIfUnchanged(
+                        operationId = operation.id,
                         listingId = listing.id,
                         title = serverListing.title,
                         price = serverListing.price,
@@ -66,13 +65,6 @@ class SyncRepositoryImpl @Inject constructor(
                         serverUpdatedAt = serverListing.updatedAt,
                         expectedUpdatedAt = listing.updatedAt
                     )
-
-                    if (updatedRows == 1) {
-                        syncOperationDao.delete(operation.id)
-                    }
-
-                    updatedRows
-                }
 
                 if (rowsUpdated == 0) {
                     throw SyncPendingException(

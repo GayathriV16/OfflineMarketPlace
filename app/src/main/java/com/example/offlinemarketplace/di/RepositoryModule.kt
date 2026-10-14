@@ -1,5 +1,7 @@
 package com.example.offlinemarketplace.di
 
+import com.example.offlinemarketplace.data.local.LocalListingDataSource
+import com.example.offlinemarketplace.data.local.RoomLocalListingDataSource
 import com.example.offlinemarketplace.data.remote.ListingApi
 import com.example.offlinemarketplace.data.remote.MockListingApi
 import com.example.offlinemarketplace.data.repository.ListingRepositoryImpl
@@ -28,6 +30,14 @@ abstract class RepositoryModule {
     abstract fun bindSyncRepository(
         implementation: SyncRepositoryImpl
     ): SyncRepository
+
+
+    @Binds
+    @Singleton
+    abstract fun bindLocalListingDataSource(
+        implementation: RoomLocalListingDataSource
+    ): LocalListingDataSource
+
 
     companion object {
         @Provides

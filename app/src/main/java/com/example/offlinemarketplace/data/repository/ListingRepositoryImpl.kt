@@ -1,9 +1,8 @@
 
 package com.example.offlinemarketplace.data.repository
 
-import androidx.room.withTransaction
-import com.example.offlinemarketplace.data.local.AppDatabase
 import com.example.offlinemarketplace.data.local.ListingEntity
+import com.example.offlinemarketplace.data.local.LocalListingDataSource
 import com.example.offlinemarketplace.data.local.SyncOperationEntity
 import com.example.offlinemarketplace.data.remote.ApiListing
 import com.example.offlinemarketplace.data.remote.ListingApi
@@ -15,28 +14,23 @@ import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
 class ListingRepositoryImpl @Inject constructor(
-    private val database: AppDatabase,
+    private val localDataSource: LocalListingDataSource,
     private val listingApi: ListingApi
 ) : ListingRepository {
 
-    private val listingDao = database.listingDao()
-    private val syncOperationDao = database.syncOperationDao()
-
-    override val pendingOperationCount: Flow<Int> =
-        syncOperationDao.getPendingOperationCount()
+    override val pendingOperationCount: Flow<Int>
+        get() = localDataSource.pendingOperationCount
 
     override fun getListings(): Flow<List<Listing>> {
-        return listingDao.getAllListings().map { entities ->
+        return localDataSource.observeListings().map { entities ->
             entities.map { entity -> entity.toDomain() }
         }
     }
 
     override suspend fun saveListings(listings: List<Listing>) {
-        database.withTransaction {
-            listingDao.insertListings(
-                listings.map { listing -> listing.toEntity() }
-            )
-        }
+        localDataSource.saveListings(
+            listings.map { listing -> listing.toEntity() }
+        )
     }
 
     override suspend fun createListingOffline(listing: Listing) {
@@ -54,48 +48,27 @@ class ListingRepositoryImpl @Inject constructor(
             needsSync = true
         )
 
-        database.withTransaction {
-            listingDao.insertListings(listOf(entity))
-            syncOperationDao.deleteForListing(listing.id)
-            syncOperationDao.insert(
-                SyncOperationEntity(
-                    listingId = listing.id,
-                    operation = SyncOperationType.CREATE,
-                    createdAt = now
-                )
-            )
-        }
+        val operation = SyncOperationEntity(
+            listingId = listing.id,
+            operation = SyncOperationType.CREATE,
+            createdAt = now
+        )
+
+        localDataSource.createListingWithOperation(
+            listing = entity,
+            operation = operation
+        )
     }
 
     override suspend fun updateFavorite(
         listingId: Long,
         isFavorite: Boolean
     ) {
-        val now = System.currentTimeMillis()
-
-        database.withTransaction {
-            val rowsUpdated = listingDao.updateFavorite(
-                listingId = listingId,
-                isFavorite = isFavorite,
-                updatedAt = now
-            )
-
-            if (rowsUpdated == 0) return@withTransaction
-
-            val existingOperation =
-                syncOperationDao.getOperationForListing(listingId)
-
-            if (existingOperation?.operation != SyncOperationType.CREATE) {
-                syncOperationDao.deleteForListing(listingId)
-                syncOperationDao.insert(
-                    SyncOperationEntity(
-                        listingId = listingId,
-                        operation = SyncOperationType.UPDATE,
-                        createdAt = now
-                    )
-                )
-            }
-        }
+        localDataSource.updateFavoriteAndQueue(
+            listingId = listingId,
+            isFavorite = isFavorite,
+            updatedAt = System.currentTimeMillis()
+        )
     }
 
     override suspend fun updateListingOffline(
@@ -106,39 +79,19 @@ class ListingRepositoryImpl @Inject constructor(
         description: String,
         imageUri: String?
     ) {
-        val now = System.currentTimeMillis()
-
-        database.withTransaction {
-            val rowsUpdated = listingDao.updateListing(
-                listingId = listingId,
-                title = title,
-                price = price,
-                category = category,
-                description = description,
-                imageUri = imageUri,
-                updatedAt = now
-            )
-
-            if (rowsUpdated == 0) return@withTransaction
-
-            val existingOperation =
-                syncOperationDao.getOperationForListing(listingId)
-
-            if (existingOperation?.operation != SyncOperationType.CREATE) {
-                syncOperationDao.deleteForListing(listingId)
-                syncOperationDao.insert(
-                    SyncOperationEntity(
-                        listingId = listingId,
-                        operation = SyncOperationType.UPDATE,
-                        createdAt = now
-                    )
-                )
-            }
-        }
+        localDataSource.updateListingAndQueue(
+            listingId = listingId,
+            title = title,
+            price = price,
+            category = category,
+            description = description,
+            imageUri = imageUri,
+            updatedAt = System.currentTimeMillis()
+        )
     }
 
     override suspend fun hasListings(): Boolean {
-        return listingDao.getListingCount() > 0
+        return localDataSource.hasListings()
     }
 
     override suspend fun fetchListingsFromServer(): List<Listing> {
