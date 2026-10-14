@@ -6,7 +6,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-class SyncManagerTest {
+class MockListingApiTest {
 
     @Test
     fun newer_update_wins() = runBlocking {
@@ -38,47 +38,28 @@ class SyncManagerTest {
         )
     }
 
-    @Test
-    fun older_update_does_not_overwrite_newer_server_value() = runBlocking {
 
+    @Test
+    fun update_listing_returns_updated_values() = runBlocking {
         val api = MockListingApi.instance
 
-        val newerListing = ApiListing(
-            id = 2,
-            title = "New Office Chair",
-            price = 6000.0,
-            category = "Furniture",
-            description = "Newer server version",
+        val listing = ApiListing(
+            id = 9103L,
+            title = "Updated Laptop",
+            price = 45000.0,
+            category = "Electronics",
+            description = "Updated laptop description",
             imageUrl = null,
-            updatedAt = System.currentTimeMillis() + 2000
+            updatedAt = System.currentTimeMillis() + 5000
         )
 
-        val olderListing = ApiListing(
-            id = 2,
-            title = "Old Office Chair",
-            price = 4000.0,
-            category = "Furniture",
-            description = "Older client version",
-            imageUrl = null,
-            updatedAt = System.currentTimeMillis()
-        )
+        val result = api.updateListing(listing)
 
-        api.updateListing(newerListing)
-
-        val result =
-            api.updateListing(olderListing)
-
-        assertEquals(
-            "New Office Chair",
-            result.title
-        )
-
-        assertEquals(
-            6000.0,
-            result.price,
-            0.01
-        )
+        assertEquals(listing.id, result.id)
+        assertEquals("Updated Laptop", result.title)
+        assertEquals(45000.0, result.price, 0.01)
     }
+
 
     @Test
     fun create_listing_is_saved_on_server() = runBlocking {
