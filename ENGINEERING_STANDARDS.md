@@ -2,148 +2,70 @@
 
 ## 1. Purpose
 
-This document defines the coding conventions, architectural principles, data-handling rules, and quality expectations for the OfflineMarketPlace Android application.
+This document defines the engineering principles and coding standards followed in the OfflineMarketPlace Android application. The goal is to maintain readable, testable, maintainable, and reliable code while supporting offline-first functionality.
 
-## 2. General Coding Standards
+## 2. Technology Standards
 
-* Use Kotlin for application code.
-* Follow consistent Kotlin naming conventions:
-
-  * Classes and objects: `PascalCase`
-  * Functions and properties: `camelCase`
-  * Constants: `UPPER_SNAKE_CASE` where appropriate
-* Prefer immutable values with `val`.
-* Keep functions focused on a single responsibility.
-* Avoid duplicated business logic.
-* Use meaningful names and add comments for non-obvious decisions.
-* Remove unused imports, obsolete code, and debug statements before submission.
+- **Language:** Kotlin
+- **UI:** Jetpack Compose and Material 3
+- **Architecture:** Layered architecture with separation of concerns
+- **Dependency Injection:** Hilt
+- **Local Persistence:** Room
+- **Asynchronous Processing:** Kotlin Coroutines and Flow
+- **Navigation:** Navigation Compose
+- **Background Synchronization:** WorkManager
+- **Testing:** JUnit and appropriate coroutine-testing and mocking libraries
 
 ## 3. Architecture and Separation of Concerns
 
+The application separates presentation, domain, and data responsibilities.
+
 ### Presentation Layer
 
-* Compose screens are responsible for rendering UI and forwarding user actions.
-* ViewModels manage presentation state and coordinate use cases.
-* `BrowseViewModel` handles browsing, favorites, and browse-related synchronization state.
-* `ListingFormViewModel` handles listing creation and editing.
-* Use a consolidated `BrowseUiState` when multiple values are needed by the browse screen.
-* Keep database and network implementation details out of composables.
+- Use Jetpack Compose for UI components and screens.
+- Use screen-specific ViewModels to manage screen-related state and events.
+- Keep business logic out of composable functions.
+- Collect observable state using lifecycle-aware APIs.
+- Use reusable composables where appropriate.
+- Provide Compose previews for reusable components and important screens.
 
 ### Domain Layer
 
-* Use cases represent individual application actions.
-* Use cases should not depend on Android UI components.
-* Keep business rules in the appropriate domain or data component rather than duplicating them in screens.
+- Keep business rules in use cases rather than UI components.
+- Use domain models independently of database entities and remote API models.
+- Define repository interfaces for operations required by the domain.
+- Keep use cases focused on a single business responsibility.
 
 ### Data Layer
 
-* `ListingRepositoryImpl` coordinates local listing operations and pending sync records.
-* DAOs are responsible for Room queries.
-* `ListingApi` abstracts remote operations.
-* `MockListingApi` provides the current in-memory API implementation.
+- Implement repository interfaces in the data layer.
+- Separate local persistence from remote API access.
+- Use data-source interfaces to reduce direct dependencies on database implementation details.
+- Map database entities and API models to domain models at the appropriate boundaries.
+- Avoid exposing Room entities directly to the UI.
 
 ## 4. Dependency Injection
 
-* Use Hilt for dependency management.
-* Use constructor injection where appropriate.
-* Register database, DAO, repository, and API dependencies through Hilt modules or injectable constructors.
-* Use singleton scope for application-wide shared resources such as the Room database.
-* Avoid manually constructing dependencies inside ViewModels.
+- Use Hilt to provide dependencies.
+- Prefer constructor injection for classes with dependencies.
+- Use Hilt modules to bind interfaces to their implementations and provide external dependencies.
+- Avoid manually constructing repositories, data sources, and ViewModels throughout the application.
+- Keep dependency configuration centralized and easy to maintain.
 
-## 5. UI and Resource Management
+## 5. Kotlin Coding Standards
 
-* Store user-facing strings in `strings.xml`.
-* Store reusable dimensions in resource files.
-* Store reusable colors in resource definitions.
-* Use Compose navigation to manage screen transitions.
-* Provide Compose previews for reusable components and screens where practical.
-* Handle loading, empty, success, and error conditions explicitly.
-* Keep composables focused on UI rendering.
+- Follow Kotlin naming conventions.
+- Use `PascalCase` for classes, interfaces, and enums.
+- Use `camelCase` for properties and functions.
+- Use descriptive names that communicate intent.
+- Prefer immutable variables with `val` over `var` whenever possible.
+- Use data classes for appropriate data-holding models.
+- Avoid unnecessary code duplication.
+- Keep functions small and focused.
+- Avoid deeply nested conditional logic.
+- Use enums or sealed classes for fixed operation types and state representations instead of repeated string literals where appropriate.
 
-## 6. Null and Error Handling
+## 6. Null Safety and Error Handling
 
-* Use nullable types only when a value can legitimately be absent.
-* Handle nullable image URLs and optional values safely.
-* Avoid force-unwrapping nullable values unless validity is guaranteed.
-* Handle expected exceptions at an appropriate boundary.
-* Re-throw `CancellationException` when catching broad exceptions in coroutine code.
-* Do not silently swallow errors that affect user-visible operations.
-* Keep network failures distinguishable from successful synchronization.
-
-## 7. Reactive State Management
-
-* Use Flow for ongoing data streams from Room.
-* Use StateFlow for observable ViewModel state.
-* Collect UI state using lifecycle-aware collection.
-* Avoid exposing mutable state flows directly to the UI.
-* Use a data class when multiple UI values can coexist.
-* Use sealed classes or enums when representing mutually exclusive states or a fixed set of operation types, as appropriate.
-
-## 8. Database Standards
-
-* Use Room for persistent local storage.
-* Keep database access inside DAOs and repositories.
-* Use suspend functions for one-time database operations and Flow for observable queries.
-* Use transactions when multiple local database changes must succeed or fail together.
-* Keep database schema versions and migration strategies consistent.
-* Avoid destructive migrations when local user data must be preserved.
-* Consider exporting Room schemas to support migration review.
-
-## 9. Offline Synchronization Standards
-
-* Save offline changes locally before attempting remote synchronization.
-* Record pending operations persistently in Room.
-* Represent supported operation types with `SyncOperationType`.
-* Process operations in a deterministic order.
-* Preserve a pending CREATE operation when the same unsynced listing is edited or favorited.
-* Avoid overwriting a newer local edit with a stale server response.
-* Remove a pending operation only when the corresponding synchronization outcome has been handled safely.
-* Propagate network failures so the worker can apply its configured retry policy.
-* Prevent overlapping synchronization runs where appropriate.
-* Design retries to be safe if the server succeeds but the client does not receive or persist the response.
-* Use server-side idempotency keys or equivalent guarantees in a production API.
-* Define a policy for pending operations whose local listing no longer exists.
-
-## 10. Performance and Resource Usage
-
-* Use lazy Compose layouts for long listing collections.
-* Avoid unnecessary recompositions and repeated network calls.
-* Keep expensive work off the main thread.
-* Avoid loading large datasets unnecessarily.
-* Measure memory and CPU usage with profiling tools instead of relying on assumptions.
-* Consider pagination and image-loading optimizations as the dataset grows.
-
-## 11. Testing and Validation
-
-Before submitting a change, verify:
-
-* The project builds successfully.
-* Listing creation and editing work.
-* Favorite changes update the UI.
-* Offline changes persist after the app is restarted.
-* Pending operations are synchronized after connectivity returns.
-* Network failures do not crash the application.
-* A newer local edit is not overwritten by a stale sync response.
-* Repeated sync requests do not produce unintended duplicate effects.
-* Loading and synchronization states are displayed correctly.
-
-Add automated tests for use cases, repository behavior, DAO operations, and synchronization edge cases where practical.
-
-## 12. Code Review Checklist
-
-* [ ] Does the change have a clear responsibility?
-* [ ] Are dependencies injected appropriately?
-* [ ] Are nullable values and errors handled safely?
-* [ ] Are user-facing strings and dimensions stored in resources?
-* [ ] Is UI state exposed immutably?
-* [ ] Are related database changes transactional?
-* [ ] Can synchronization retries safely repeat operations?
-* [ ] Are local edits protected from stale server responses?
-* [ ] Have relevant tests and build checks passed?
-* [ ] Has documentation been updated when behavior or architecture changes?
-
-## 13. Known Limitations
-
-The current implementation uses an in-memory `MockListingApi`. Server persistence and production-grade idempotency therefore depend on replacing the mock with a real backend.
-
-The local repository operations and sync-queue changes should be reviewed for transactional consistency. Database migrations, worker retry behavior, and concurrency guarantees should also be verified before production use.
+- Use Kotlin's nullable types to represent values that may be absent.
+- Avoid the not-null assertion operator (`!!`) unless
